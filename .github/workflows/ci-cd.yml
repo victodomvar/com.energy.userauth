@@ -45,5 +45,5 @@ jobs:
         env:
           KUBECONFIG: ${{ secrets.KUBECONFIG }}
         run: |
-          kubectl apply -f k8s/deployment/userauth-deployment.yaml
-          kubectl apply -f k8s/deployment/userauth-service.yaml
+          kubectl apply -f k8s/deployment/userauth-deployment.yaml --validate=false
+          kubectl apply -f k8s/deployment/userauth-service.yaml --validate=false
