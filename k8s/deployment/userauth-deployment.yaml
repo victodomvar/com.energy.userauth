@@ -1,0 +1,27 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: userauth-deployment
+  namespace: energyco
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: userauth
+  template:
+    metadata:
+      labels:
+        app: userauth
+    spec:
+      containers:
+        - name: userauth
+          image: victodomvar/userauth:latest
+          ports:
+            - containerPort: 8080
+          env:
+            - name: SPRING_DATASOURCE_URL
+              value: "jdbc:postgresql://userauthdb-service:5432/userauthdb"
+            - name: SPRING_DATASOURCE_USERNAME
+              value: "userauthuser"
+            - name: SPRING_DATASOURCE_PASSWORD
+              value: "userauthpassword"
