@@ -1,0 +1,27 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: userauthdb-deployment
+  namespace: energyco
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: userauthdb
+  template:
+    metadata:
+      labels:
+        app: userauthdb
+    spec:
+      containers:
+        - name: userauthdb
+          image: postgres:13
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRES_DB
+              value: "userauthdb"
+            - name: POSTGRES_USER
+              value: "userauthuser"
+            - name: POSTGRES_PASSWORD
+              value: "userauthpassword"
