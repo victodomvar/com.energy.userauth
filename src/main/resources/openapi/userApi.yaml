@@ -21,6 +21,50 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/UserDto'
+    get:
+      tags:
+        - User
+      operationId: getUser
+      parameters:
+        - name: id
+          in: query
+          required: false
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/UserDto'
+    put:
+      tags:
+        - User
+      operationId: updateUser
+      parameters:
+        - name: id
+          in: query
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserDto'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserDto'
   /users/login:
     post:
       tags:
@@ -39,81 +83,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AuthResponse'
-  /users/{id}:
-    get:
-      tags:
-        - User
-      operationId: getUser
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        '200':
-          description: OK
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/UserDto'
-    put:
-      tags:
-        - User
-      operationId: updateUser
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/UserDto'
-      responses:
-        '200':
-          description: OK
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/UserDto'
-  /users/{id}/password:
-    put:
-      tags:
-        - User
-      operationId: changePassword
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/ChangePasswordRequest'
-      responses:
-        '200':
-          description: Password changed successfully
-  /users/forgot-password:
-    post:
-      tags:
-        - User
-      operationId: forgotPassword
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/ForgotPasswordRequest'
-      responses:
-        '200':
-          description: Password recovery initiated
   /users/refresh-token:
     post:
       tags:
@@ -138,26 +107,26 @@ components:
       type: object
       properties:
         id:
-          type: integer
-        username:
+          type: long
+        userName:
           type: string
         email:
           type: string
         password:
           type: string
       required:
-        - username
+        - userName
         - email
         - password
     LoginRequest:
       type: object
       properties:
-        username:
+        userName:
           type: string
         password:
           type: string
       required:
-        - username
+        - userName
         - password
     AuthResponse:
       type: object
@@ -170,23 +139,6 @@ components:
       required:
         - token
         - expiresIn
-    ChangePasswordRequest:
-      type: object
-      properties:
-        oldPassword:
-          type: string
-        newPassword:
-          type: string
-      required:
-        - oldPassword
-        - newPassword
-    ForgotPasswordRequest:
-      type: object
-      properties:
-        email:
-          type: string
-      required:
-        - email
     RefreshTokenRequest:
       type: object
       properties:

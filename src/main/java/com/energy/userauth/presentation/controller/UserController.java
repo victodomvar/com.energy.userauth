@@ -5,13 +5,10 @@ import com.energy.userauth.application.port.AuthService;
 import com.energy.userauth.application.port.UserService;
 import com.energy.userauth.openapi.api.UserApi;
 import com.energy.userauth.openapi.model.*;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.AuthenticationException;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
 
 @RestController
 public class UserController implements UserApi {
@@ -25,24 +22,14 @@ public class UserController implements UserApi {
     }
 
     @Override
-    public ResponseEntity<Void> changePassword(Integer id, ChangePasswordRequest changePasswordRequest) {
-        return null;
-    }
-
-    @Override
     public ResponseEntity<UserDto> createUser(UserDto userDto) {
         UserDto createdUser = userService.createUser(userDto);
         return ResponseEntity.ok(createdUser);
     }
 
     @Override
-    public ResponseEntity<Void> forgotPassword(ForgotPasswordRequest forgotPasswordRequest) {
-        return null;
-    }
-
-    @Override
-    public ResponseEntity<UserDto> getUser(Integer id) {
-        return null;
+    public ResponseEntity<List<UserDto>> getUser(Long id) {
+        return ResponseEntity.ok( userService.getUser(id));
     }
 
     @Override
@@ -52,11 +39,15 @@ public class UserController implements UserApi {
 
     @Override
     public ResponseEntity<AuthResponse> refreshToken(RefreshTokenRequest refreshTokenRequest) {
-        return null;
+
+        return ResponseEntity.ok( authService.refreshToken(refreshTokenRequest));
+
     }
 
     @Override
-    public ResponseEntity<UserDto> updateUser(Integer id, UserDto userDto) {
-        return null;
+    public ResponseEntity<UserDto> updateUser(Long id, UserDto userDto) {
+        UserDto updatedUser = userService.updateUser( id, userDto);
+        return ResponseEntity.ok(updatedUser);
+
     }
 }

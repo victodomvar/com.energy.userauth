@@ -3,16 +3,21 @@ package com.energy.userauth.infrastructure.security;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
 import lombok.Data;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Component;
+
 
 import java.util.Date;
 
 @Component
 @Data
 public class JwtUtil {
-    private final String secret = "tuClaveSecretaMuySegura";
-    private final long expiration = 3600000; // 1 hora en milisegundos
+
+    @Value("${jwt.secret}")
+    private String secret;
+    @Value("${jwt.expiration}")
+    private long expiration;
 
     public String generateToken(UserDetails userDetails) {
         return Jwts.builder()
@@ -44,5 +49,17 @@ public class JwtUtil {
                 .getExpiration();
         return expiration.before(new Date());
     }
+
+    public boolean validateToken(String token) {
+        try {
+            Jwts.parser()
+                    .setSigningKey(secret.getBytes())
+                    .parseClaimsJws(token);
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
 }
 

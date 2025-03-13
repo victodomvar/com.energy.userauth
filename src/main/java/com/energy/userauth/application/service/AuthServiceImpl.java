@@ -4,11 +4,14 @@ import com.energy.userauth.application.port.AuthService;
 import com.energy.userauth.infrastructure.security.JwtUtil;
 import com.energy.userauth.openapi.model.AuthResponse;
 import com.energy.userauth.openapi.model.LoginRequest;
+import com.energy.userauth.openapi.model.RefreshTokenRequest;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
+
+import java.util.ArrayList;
 
 @Service
 public class AuthServiceImpl implements AuthService {
@@ -23,7 +26,7 @@ public class AuthServiceImpl implements AuthService {
 
     public AuthResponse login(LoginRequest loginRequest) {
         Authentication authentication = authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(loginRequest.getUsername(), loginRequest.getPassword())
+                new UsernamePasswordAuthenticationToken(loginRequest.getUserName(), loginRequest.getPassword())
         );
 
         UserDetails userDetails = (UserDetails) authentication.getPrincipal();
@@ -35,5 +38,25 @@ public class AuthServiceImpl implements AuthService {
                 .expiresIn((int)jwtUtil.getExpiration() / 1000);
 
     }
+
+    @Override
+    public AuthResponse refreshToken(RefreshTokenRequest refreshTokenRequest) {
+        String refreshToken = refreshTokenRequest.getRefreshToken();
+
+        if (jwtUtil.validateToken(refreshToken)) {
+            String username = jwtUtil.extractUsername(refreshToken);
+            UserDetails userDetails = new org.springframework.security.core.userdetails.User(username, "", new ArrayList<>());
+
+            String newAccessToken = jwtUtil.generateToken(userDetails);
+
+            return new AuthResponse()
+                    .token(newAccessToken)
+                    .expiresIn((int) jwtUtil.getExpiration() / 1000);
+        } else {
+            throw new RuntimeException("Invalid refresh token");
+        }
+    }
 }
+
+
 
