@@ -4,8 +4,11 @@ on:
   push:
     branches:
       - master
-      - developer
-
+      - develop
+  pull_request:
+    branches:
+      - master
+      - develop
 jobs:
   build-deploy:
     runs-on: self-hosted
