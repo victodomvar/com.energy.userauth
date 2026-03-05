@@ -52,11 +52,25 @@ jobs:
           version: v1.32.0
 
       - name: Configure kubeconfig
+        env:
+          KUBE_CONFIG_CONTENT: ${{ secrets.KUBE_CONFIG }}
         run: |
           set -euo pipefail
           mkdir -p ~/.kube
-          printf '%s' "${{ secrets.KUBE_CONFIG }}" > ~/.kube/config
+          # Support both plain kubeconfig YAML and base64-encoded kubeconfig.
+          if printf '%s' "${KUBE_CONFIG_CONTENT}" | base64 -d > ~/.kube/config 2>/dev/null && grep -q '^apiVersion:' ~/.kube/config; then
+            echo "Loaded base64 kubeconfig"
+          else
+            printf '%s' "${KUBE_CONFIG_CONTENT}" | sed 's/\\n/\n/g' > ~/.kube/config
+            echo "Loaded plain-text kubeconfig"
+          fi
           chmod 600 ~/.kube/config
+          kubectl config current-context
+
+      - name: Validate cluster connectivity
+        run: |
+          set -euo pipefail
+          kubectl cluster-info
 
       - name: Ensure namespace exists
         run: |
