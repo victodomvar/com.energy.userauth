@@ -65,7 +65,17 @@ jobs:
             echo "Loaded plain-text kubeconfig"
           fi
           chmod 600 ~/.kube/config
-          kubectl config current-context
+          CURRENT_CONTEXT="$(kubectl config current-context 2>/dev/null || true)"
+          if [ -z "${CURRENT_CONTEXT}" ]; then
+            FIRST_CONTEXT="$(kubectl config get-contexts -o name | head -n1 || true)"
+            if [ -z "${FIRST_CONTEXT}" ]; then
+              echo "No Kubernetes context found in kubeconfig." >&2
+              exit 1
+            fi
+            kubectl config use-context "${FIRST_CONTEXT}"
+            CURRENT_CONTEXT="${FIRST_CONTEXT}"
+          fi
+          echo "Using context: ${CURRENT_CONTEXT}"
 
       - name: Validate cluster connectivity
         run: |
