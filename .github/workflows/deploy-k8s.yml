@@ -1,0 +1,47 @@
+name: Deploy to Kubernetes
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_version:
+        description: Docker image tag to deploy
+        required: true
+        type: string
+  workflow_call:
+    inputs:
+      image_version:
+        required: true
+        type: string
+    secrets:
+      KUBE_CONFIG:
+        required: true
+
+permissions: {}
+
+env:
+  IMAGE_NAME: victodomvar/userauth
+  NAMESPACE: energyco
+  DEPLOYMENT_NAME: userauth
+  CONTAINER_NAME: userauth
+
+jobs:
+  deploy:
+    runs-on: self-hosted
+    steps:
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: v1.32.0
+
+      - name: Configure kubeconfig
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.kube
+          printf '%s' "${{ secrets.KUBE_CONFIG }}" > ~/.kube/config
+          chmod 600 ~/.kube/config
+
+      - name: Deploy image and wait rollout
+        run: |
+          set -euo pipefail
+          kubectl set image deployment/${DEPLOYMENT_NAME} ${CONTAINER_NAME}=${IMAGE_NAME}:${{ inputs.image_version }} -n ${NAMESPACE}
+          kubectl rollout status deployment/${DEPLOYMENT_NAME} -n ${NAMESPACE}
