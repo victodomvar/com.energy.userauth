@@ -94,7 +94,7 @@ jobs:
       - name: Build and push Docker image
         run: |
           set -euo pipefail
-          docker build -t victodomvar/userauth:${{ github.sha }} -t victodomvar/userauth:latest .
+          docker build -f dockerfile -t victodomvar/userauth:${{ github.sha }} -t victodomvar/userauth:latest .
           docker push victodomvar/userauth:${{ github.sha }}
           docker push victodomvar/userauth:latest
 
@@ -107,5 +107,3 @@ jobs:
     uses: ./.github/workflows/deploy-k8s.yml
     with:
       image_version: ${{ github.sha }}
-    secrets:
-      KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}

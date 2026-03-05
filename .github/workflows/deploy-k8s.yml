@@ -4,9 +4,8 @@ on:
   workflow_dispatch:
     inputs:
       image_version:
-        description: Docker image tag to set on deployment (optional)
-        required: false
-        default: latest
+        description: Docker image tag to deploy
+        required: true
         type: string
       namespace:
         description: Kubernetes namespace
@@ -20,11 +19,8 @@ on:
         type: string
       namespace:
         required: false
-        type: string
         default: energyco
-    secrets:
-      KUBE_CONFIG:
-        required: true
+        type: string
 
 permissions:
   contents: read
@@ -33,15 +29,16 @@ concurrency:
   group: deploy-k8s-${{ github.ref_name }}-${{ inputs.namespace }}
   cancel-in-progress: false
 
+env:
+  IMAGE_NAME: victodomvar/userauth
+  DEPLOYMENT_NAME: userauth
+  CONTAINER_NAME: userauth
+
 jobs:
   deploy:
-    name: Deploy manifests
     runs-on: self-hosted
     env:
       NAMESPACE: ${{ inputs.namespace }}
-      IMAGE_NAME: victodomvar/userauth
-      DEPLOYMENT_NAME: userauth
-      CONTAINER_NAME: userauth
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -51,46 +48,21 @@ jobs:
         with:
           version: v1.32.0
 
-      - name: Configure kubeconfig
-        env:
-          KUBE_CONFIG_CONTENT: ${{ secrets.KUBE_CONFIG }}
+      - name: Use minikube context
         run: |
           set -euo pipefail
-          mkdir -p ~/.kube
-          # Support both plain kubeconfig YAML and base64-encoded kubeconfig.
-          if printf '%s' "${KUBE_CONFIG_CONTENT}" | base64 -d > ~/.kube/config 2>/dev/null && grep -q '^apiVersion:' ~/.kube/config; then
-            echo "Loaded base64 kubeconfig"
-          else
-            printf '%s' "${KUBE_CONFIG_CONTENT}" | sed 's/\\n/\n/g' > ~/.kube/config
-            echo "Loaded plain-text kubeconfig"
-          fi
-          chmod 600 ~/.kube/config
-          CURRENT_CONTEXT="$(kubectl config current-context 2>/dev/null || true)"
-          if [ -z "${CURRENT_CONTEXT}" ]; then
-            FIRST_CONTEXT="$(kubectl config get-contexts -o name | head -n1 || true)"
-            if [ -z "${FIRST_CONTEXT}" ]; then
-              echo "No Kubernetes context found in kubeconfig." >&2
-              exit 1
-            fi
-            kubectl config use-context "${FIRST_CONTEXT}"
-            CURRENT_CONTEXT="${FIRST_CONTEXT}"
-          fi
-          echo "Using context: ${CURRENT_CONTEXT}"
-
-      - name: Validate cluster connectivity
-        run: |
-          set -euo pipefail
+          kubectl config use-context minikube
           kubectl cluster-info
 
       - name: Ensure namespace exists
         run: |
           set -euo pipefail
-          kubectl create namespace "${NAMESPACE}" --dry-run=client -o yaml | kubectl apply --validate=false -f -
+          kubectl get namespace "${NAMESPACE}" >/dev/null 2>&1 || kubectl create namespace "${NAMESPACE}"
 
       - name: Apply Kubernetes manifests
         run: |
           set -euo pipefail
-          kubectl apply --validate=false -n "${NAMESPACE}" -f k8s/
+          kubectl apply -n "${NAMESPACE}" -f k8s/
 
       - name: Update deployment image
         run: |
