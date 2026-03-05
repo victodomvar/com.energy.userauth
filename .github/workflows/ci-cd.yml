@@ -31,10 +31,19 @@ jobs:
       - name: Verify code quality gates
         run: mvn verify -DskipTests --no-transfer-progress
 
+  qodana:
+    name: Qodana Scan
+    needs: code_quality
+    uses: ./.github/workflows/qodana_code_quality.yml
+    secrets:
+      QODANA_TOKEN: ${{ secrets.QODANA_TOKEN }}
+
   test:
     name: Tests
     runs-on: self-hosted
-    needs: code_quality
+    needs:
+      - code_quality
+      - qodana
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -93,4 +102,5 @@ jobs:
     uses: ./.github/workflows/deploy-k8s.yml
     with:
       image_version: ${{ github.sha }}
-    secrets: inherit
+    secrets:
+      KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
