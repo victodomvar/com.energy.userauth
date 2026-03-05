@@ -1,52 +1,86 @@
 name: CI/CD Pipeline
 
 on:
-  push:
-    branches:
-      - master
-      - develop
   pull_request:
     branches:
-      - master
       - develop
-jobs:
-  build-deploy:
-    runs-on: self-hosted
+      - master
+  push:
+    branches:
+      - develop
+      - master
 
+permissions:
+  contents: read
+
+jobs:
+  code_quality:
+    name: Code Quality
+    runs-on: self-hosted
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Set up JDK 17
-        uses: actions/setup-java@v3
+        uses: actions/setup-java@v4
         with:
+          distribution: temurin
           java-version: '17'
-          distribution: 'temurin'
+          cache: maven
 
-      - name: Build with Maven
-        run: mvn clean package --no-transfer-progress
+      - name: Verify code quality gates
+        run: mvn verify -DskipTests --no-transfer-progress
+
+  test:
+    name: Tests
+    runs-on: self-hosted
+    needs: code_quality
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+
+      - name: Run tests
+        run: mvn clean verify --no-transfer-progress
+
+  docker:
+    name: Build and Push Docker Image
+    runs-on: self-hosted
+    needs: test
+    if: ${{ github.event_name == 'push' && (github.ref_name == 'develop' || github.ref_name == 'master') }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
+        uses: docker/setup-buildx-action@v3
 
       - name: Log in to Docker Hub
-        uses: docker/login-action@v2
+        uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
       - name: Build and push Docker image
         run: |
-          docker build -t victodomvar/userauth:latest .
+          set -euo pipefail
+          docker build -t victodomvar/userauth:${{ github.sha }} -t victodomvar/userauth:latest .
+          docker push victodomvar/userauth:${{ github.sha }}
           docker push victodomvar/userauth:latest
 
-      - name: Set up kubectl
-        uses: azure/setup-kubectl@v3
-        with:
-          version: 'v1.32.0'
-
-      - name: Deploy to Kubernetes
-        run: |
-          kubectl apply -f k8s/deployment/userauth-deployment.yaml --validate=false
-          kubectl apply -f k8s/deployment/userauth-service.yaml --validate=false
-          kubectl wait --for=condition=ready pod -l app=userauth -n energyco
+  deploy:
+    name: Deploy to Kubernetes
+    needs:
+      - test
+      - docker
+    if: ${{ github.event_name == 'push' && (github.ref_name == 'develop' || github.ref_name == 'master') }}
+    uses: ./.github/workflows/deploy-k8s.yml
+    with:
+      image_version: ${{ github.sha }}
+    secrets: inherit
