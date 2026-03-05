@@ -48,24 +48,54 @@ jobs:
         with:
           version: v1.32.0
 
-      - name: Use minikube context
+      - name: Debug runner and kubeconfig
         run: |
           set -euo pipefail
-          kubectl config use-context minikube
-          kubectl cluster-info
+          echo "whoami: $(whoami)"
+          echo "HOME: ${HOME}"
+          echo "KUBECONFIG: ${KUBECONFIG:-<not set>}"
+          if [ -f "${HOME}/.kube/config" ]; then
+            echo "~/.kube/config exists"
+          else
+            echo "~/.kube/config missing"
+          fi
+          kubectl config get-contexts -o name || true
+
+      - name: Select Kubernetes context
+        run: |
+          set -euo pipefail
+          CONTEXT="${KUBE_CONTEXT:-}"
+          if [ -z "${CONTEXT}" ]; then
+            CONTEXT="$(kubectl config current-context 2>/dev/null || true)"
+          fi
+          if [ -z "${CONTEXT}" ]; then
+            CONTEXT="$(kubectl config get-contexts -o name | head -n1 || true)"
+          fi
+          if [ -z "${CONTEXT}" ]; then
+            echo "No Kubernetes context available for this runner user." >&2
+            exit 1
+          fi
+          kubectl config use-context "${CONTEXT}"
+          echo "KUBE_CONTEXT_SELECTED=${CONTEXT}" >> "${GITHUB_ENV}"
+          echo "Using context: ${CONTEXT}"
+
+      - name: Verify cluster connectivity
+        run: |
+          set -euo pipefail
+          kubectl --context "${KUBE_CONTEXT_SELECTED}" cluster-info
 
       - name: Ensure namespace exists
         run: |
           set -euo pipefail
-          kubectl get namespace "${NAMESPACE}" >/dev/null 2>&1 || kubectl create namespace "${NAMESPACE}"
+          kubectl --context "${KUBE_CONTEXT_SELECTED}" get namespace "${NAMESPACE}" >/dev/null 2>&1 || kubectl --context "${KUBE_CONTEXT_SELECTED}" create namespace "${NAMESPACE}"
 
       - name: Apply Kubernetes manifests
         run: |
           set -euo pipefail
-          kubectl apply -n "${NAMESPACE}" -f k8s/
+          kubectl --context "${KUBE_CONTEXT_SELECTED}" apply -n "${NAMESPACE}" -f k8s/
 
       - name: Update deployment image
         run: |
           set -euo pipefail
-          kubectl set image deployment/${DEPLOYMENT_NAME} ${CONTAINER_NAME}=${IMAGE_NAME}:${{ inputs.image_version }} -n "${NAMESPACE}"
-          kubectl rollout status deployment/${DEPLOYMENT_NAME} -n "${NAMESPACE}"
+          kubectl --context "${KUBE_CONTEXT_SELECTED}" set image deployment/${DEPLOYMENT_NAME} ${CONTAINER_NAME}=${IMAGE_NAME}:${{ inputs.image_version }} -n "${NAMESPACE}"
+          kubectl --context "${KUBE_CONTEXT_SELECTED}" rollout status deployment/${DEPLOYMENT_NAME} -n "${NAMESPACE}"
