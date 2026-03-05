@@ -1,6 +1,9 @@
 spring:
+  security:
+    user:
+      name: victor
+      password: victor
   datasource:
-    url: jdbc:postgresql://userauthdb-service:5432/userauthdb
     username: userauthuser
     password: userauthpassword
     driver-class-name: org.postgresql.Driver
@@ -10,3 +13,19 @@ spring:
         dialect: org.hibernate.dialect.PostgreSQLDialect
     hibernate:
       ddl-auto: update
+
+---
+spring:
+  config:
+    activate:
+      on-profile: prod
+  datasource:
+    url: jdbc:postgresql://userauthdb-service:5432/userauthdb
+
+---
+spring:
+  config:
+    activate:
+      on-profile: dev
+  datasource:
+    url: jdbc:postgresql://localhost:5432/userauthdb

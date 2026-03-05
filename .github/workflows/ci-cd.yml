@@ -1,49 +1,200 @@
 name: CI/CD Pipeline
 
 on:
+  pull_request:
+    branches:
+      - develop
+      - master
   push:
     branches:
+      - develop
       - master
-      - developer
+
+concurrency:
+  group: ci-cd-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
 
 jobs:
-  build-deploy:
+  code_quality:
+    name: Code Quality
     runs-on: self-hosted
-
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Set up JDK 17
-        uses: actions/setup-java@v3
+        uses: actions/setup-java@v4
         with:
+          distribution: temurin
           java-version: '17'
-          distribution: 'temurin'
+          cache: maven
 
-      - name: Build with Maven
-        run: mvn clean package --no-transfer-progress
+      - name: Maven verify (skip tests)
+        run: mvn --batch-mode --no-transfer-progress verify -DskipTests
+
+  qodana:
+    name: Qodana Scan
+    runs-on: self-hosted
+    needs: code_quality
+    permissions:
+      contents: read
+      checks: write
+      pull-requests: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Qodana Scan
+        uses: JetBrains/qodana-action@v2025.3
+        env:
+          QODANA_TOKEN: ${{ secrets.QODANA_TOKEN }}
+        with:
+          pr-mode: false
+          use-caches: true
+          post-pr-comment: true
+          use-annotations: true
+          upload-result: false
+          push-fixes: 'none'
+
+  tests:
+    name: Tests
+    runs-on: self-hosted
+    needs:
+      - code_quality
+      - qodana
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+
+      - name: Maven clean verify
+        run: mvn --batch-mode --no-transfer-progress clean verify
+
+  codeql:
+    name: CodeQL Analysis
+    runs-on: self-hosted
+    needs: tests
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: java-kotlin
+          build-mode: manual
+
+      - name: Build project for CodeQL
+        run: mvn --batch-mode --no-transfer-progress clean compile -DskipTests
+
+      - name: Analyze with CodeQL
+        uses: github/codeql-action/analyze@v3
+
+  docker:
+    name: Docker Build and Push
+    runs-on: self-hosted
+    needs: codeql
+    if: ${{ github.event_name == 'push' }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
+        uses: docker/setup-buildx-action@v3
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+
+      - name: Build application jar
+        run: mvn --batch-mode --no-transfer-progress clean package -DskipTests
+
+      - name: Extract Maven project version
+        id: app_version
+        run: |
+          set -euo pipefail
+          APP_VERSION="$(mvn -q -DforceStdout help:evaluate -Dexpression=project.version)"
+          echo "version=${APP_VERSION}" >> "${GITHUB_OUTPUT}"
+          echo "Resolved Maven version: ${APP_VERSION}"
 
       - name: Log in to Docker Hub
-        uses: docker/login-action@v2
+        uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      - name: Build and push Docker image
+      - name: Build and push image tags
+        env:
+          IMAGE_NAME: victodomvar/userauth
+          APP_VERSION: ${{ steps.app_version.outputs.version }}
         run: |
-          docker build -t victodomvar/userauth:latest .
-          docker push victodomvar/userauth:latest
+          set -euo pipefail
+          docker build -f dockerfile \
+            -t ${IMAGE_NAME}:${APP_VERSION} \
+            -t ${IMAGE_NAME}:${{ github.sha }} \
+            -t ${IMAGE_NAME}:latest \
+            .
+          docker push ${IMAGE_NAME}:${APP_VERSION}
+          docker push ${IMAGE_NAME}:${{ github.sha }}
+          docker push ${IMAGE_NAME}:latest
+
+  deploy:
+    name: Deploy to Minikube
+    runs-on: self-hosted
+    needs: docker
+    if: ${{ github.event_name == 'push' }}
+    env:
+      NAMESPACE: energyco
+      IMAGE_NAME: victodomvar/userauth
+      IMAGE_TAG: ${{ github.sha }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
       - name: Set up kubectl
-        uses: azure/setup-kubectl@v3
+        uses: azure/setup-kubectl@v4
         with:
-          version: 'v1.32.0'
+          version: v1.32.0
 
-      - name: Deploy to Kubernetes
+      - name: Deploy database then app
         run: |
-          kubectl apply -f k8s/deployment/userauth-deployment.yaml --validate=false
-          kubectl apply -f k8s/deployment/userauth-service.yaml --validate=false
-          kubectl wait --for=condition=ready pod -l app=userauth -n energyco
+          set -euo pipefail
+          kubectl config use-context minikube
+          kubectl cluster-info
+
+          kubectl get namespace "${NAMESPACE}" >/dev/null 2>&1 || kubectl create namespace "${NAMESPACE}"
+
+          kubectl apply -f k8s/db/volume/pv.yaml
+          kubectl apply -n "${NAMESPACE}" -f k8s/db/volume/pvc.yaml
+          kubectl apply -n "${NAMESPACE}" -f k8s/db/userauthdb-service.yaml
+          kubectl apply -n "${NAMESPACE}" -f k8s/db/userauthdb-deployment.yaml
+          kubectl rollout status deployment/userauthdb-deployment -n "${NAMESPACE}" --timeout=300s
+
+          kubectl apply -n "${NAMESPACE}" -f k8s/deployment/userauth-service.yaml
+          kubectl apply -n "${NAMESPACE}" -f k8s/deployment/userauth-deployment.yaml
+          kubectl set image deployment/userauth-deployment userauth=${IMAGE_NAME}:${IMAGE_TAG} -n "${NAMESPACE}"
+          kubectl rollout status deployment/userauth-deployment -n "${NAMESPACE}" --timeout=300s
+          kubectl wait --for=condition=ready pod -l app=userauth -n "${NAMESPACE}" --timeout=300s

@@ -1,0 +1,14 @@
+# Keep build context small, but include the runtime jar required by dockerfile
+**/.git
+**/.github
+**/.idea
+**/.mvn
+**/src
+
+# Keep target artifacts out except the deployable jar
+**/target/*
+!target/com.energy.userauth.jar
+
+README*
+HELP.md
+*.iml
