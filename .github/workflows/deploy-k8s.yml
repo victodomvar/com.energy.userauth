@@ -1,17 +1,6 @@
 name: Deploy to Kubernetes
 
 on:
-  workflow_dispatch:
-    inputs:
-      image_version:
-        description: Docker image tag to deploy
-        required: true
-        type: string
-      namespace:
-        description: Kubernetes namespace
-        required: true
-        default: energyco
-        type: string
   workflow_call:
     inputs:
       image_version:
@@ -41,24 +30,32 @@ jobs:
         with:
           version: v1.32.0
 
-      - name: Deploy to Minikube
+      - name: Validate Minikube context
         run: |
           set -euo pipefail
-
           kubectl config use-context minikube
           kubectl cluster-info
+          kubectl get nodes
 
+      - name: Ensure namespace exists
+        run: |
+          set -euo pipefail
           kubectl get namespace "${NAMESPACE}" >/dev/null 2>&1 || kubectl create namespace "${NAMESPACE}"
 
-          # Database resources first
+      - name: Deploy database resources first
+        run: |
+          set -euo pipefail
           kubectl apply -f k8s/db/volume/pv.yaml
           kubectl apply -n "${NAMESPACE}" -f k8s/db/volume/pvc.yaml
           kubectl apply -n "${NAMESPACE}" -f k8s/db/userauthdb-service.yaml
           kubectl apply -n "${NAMESPACE}" -f k8s/db/userauthdb-deployment.yaml
           kubectl rollout status deployment/userauthdb-deployment -n "${NAMESPACE}" --timeout=300s
 
-          # Application resources second
+      - name: Deploy application resources second
+        run: |
+          set -euo pipefail
           kubectl apply -n "${NAMESPACE}" -f k8s/deployment/userauth-service.yaml
           kubectl apply -n "${NAMESPACE}" -f k8s/deployment/userauth-deployment.yaml
           kubectl set image deployment/userauth-deployment userauth=${IMAGE_NAME}:${IMAGE_TAG} -n "${NAMESPACE}"
           kubectl rollout status deployment/userauth-deployment -n "${NAMESPACE}" --timeout=300s
+          kubectl wait --for=condition=ready pod -l app=userauth -n "${NAMESPACE}" --timeout=300s

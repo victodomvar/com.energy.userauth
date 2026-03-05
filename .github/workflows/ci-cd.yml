@@ -10,9 +10,12 @@ on:
       - develop
       - master
 
+concurrency:
+  group: ci-cd-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
-
 
 jobs:
   code_quality:
@@ -29,11 +32,11 @@ jobs:
           java-version: '17'
           cache: maven
 
-      - name: Verify code quality gates
-        run: mvn verify -DskipTests --no-transfer-progress
+      - name: Compile and quality checks
+        run: mvn --batch-mode --no-transfer-progress clean verify -DskipTests
 
-  dependency_vulnerability:
-    name: Dependency Vulnerability Scan
+  unit_tests:
+    name: Unit Tests
     runs-on: self-hosted
     needs: code_quality
     steps:
@@ -47,29 +50,50 @@ jobs:
           java-version: '17'
           cache: maven
 
-      - name: Run OWASP Dependency-Check
-        run: |
-          mvn --no-transfer-progress \
-            org.owasp:dependency-check-maven:check \
-            -Dformat=HTML \
-            -DfailBuildOnCVSS=7 \
-            -DskipProvidedScope=true \
-            -DskipSystemScope=true
+      - name: Run tests
+        run: mvn --batch-mode --no-transfer-progress test
 
-      - name: Upload OWASP report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: dependency-check-report
-          path: target/dependency-check-report.html
-          if-no-files-found: warn
+  qodana:
+    name: Qodana Scan
+    needs: code_quality
+    uses: ./.github/workflows/qodana_code_quality.yml
+    permissions:
+      contents: read
+      checks: write
+      pull-requests: write
+    secrets:
+      QODANA_TOKEN: ${{ secrets.QODANA_TOKEN }}
 
-  test:
-    name: Tests
+  codeql:
+    name: CodeQL Analysis
     runs-on: self-hosted
-    needs:
-      - code_quality
-      - dependency_vulnerability
+    needs: code_quality
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: java-kotlin
+
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v3
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+
+  dependency_submission:
+    name: Dependency Submission
+    runs-on: self-hosted
+    if: ${{ github.event_name == 'push' }}
+    needs: code_quality
+    permissions:
+      contents: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -81,17 +105,17 @@ jobs:
           java-version: '17'
           cache: maven
 
-      - name: Build application
-        run: mvn clean package -DskipTests --no-transfer-progress
-
-      - name: Run tests
-        run: mvn test --no-transfer-progress
+      - name: Submit dependency graph
+        uses: advanced-security/maven-dependency-submission-action@v5
 
   docker:
     name: Build and Push Docker Image
     runs-on: self-hosted
-    needs: test
-    if: ${{ github.event_name == 'push' && (github.ref_name == 'develop' || github.ref_name == 'master') }}
+    needs:
+      - unit_tests
+      - qodana
+      - codeql
+    if: ${{ github.event_name == 'push' }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -107,13 +131,14 @@ jobs:
           cache: maven
 
       - name: Build application jar
-        run: mvn clean package -DskipTests --no-transfer-progress
+        run: mvn --batch-mode --no-transfer-progress clean package -DskipTests
 
       - name: Extract Maven project version
+        id: app_version
         run: |
           set -euo pipefail
           APP_VERSION="$(mvn -q -DforceStdout help:evaluate -Dexpression=project.version)"
-          echo "APP_VERSION=${APP_VERSION}" >> "${GITHUB_ENV}"
+          echo "version=${APP_VERSION}" >> "${GITHUB_OUTPUT}"
           echo "Resolved Maven version: ${APP_VERSION}"
 
       - name: Log in to Docker Hub
@@ -123,23 +148,26 @@ jobs:
           password: ${{ secrets.DOCKER_PASSWORD }}
 
       - name: Build and push Docker image
+        env:
+          IMAGE_NAME: victodomvar/userauth
+          APP_VERSION: ${{ steps.app_version.outputs.version }}
         run: |
           set -euo pipefail
           docker build -f dockerfile \
-            -t victodomvar/userauth:${APP_VERSION} \
-            -t victodomvar/userauth:${{ github.sha }} \
-            -t victodomvar/userauth:latest \
+            -t ${IMAGE_NAME}:${APP_VERSION} \
+            -t ${IMAGE_NAME}:${{ github.sha }} \
+            -t ${IMAGE_NAME}:latest \
             .
-          docker push victodomvar/userauth:${APP_VERSION}
-          docker push victodomvar/userauth:${{ github.sha }}
-          docker push victodomvar/userauth:latest
+          docker push ${IMAGE_NAME}:${APP_VERSION}
+          docker push ${IMAGE_NAME}:${{ github.sha }}
+          docker push ${IMAGE_NAME}:latest
 
   deploy:
     name: Deploy to Kubernetes
     needs:
-      - test
       - docker
-    if: ${{ github.event_name == 'push' && (github.ref_name == 'develop' || github.ref_name == 'master') }}
+    if: ${{ github.event_name == 'push' }}
     uses: ./.github/workflows/deploy-k8s.yml
     with:
+      namespace: energyco
       image_version: ${{ github.sha }}
