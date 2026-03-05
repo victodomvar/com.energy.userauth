@@ -18,7 +18,7 @@ class JwtUtilTest {
     @BeforeEach
     void setUp() {
         jwtUtil = new JwtUtil();
-        ReflectionTestUtils.setField(jwtUtil, "secret", "superSecretKey1234567890");
+        ReflectionTestUtils.setField(jwtUtil, "secret", "superSecretKey1234567890abcd123456");
         ReflectionTestUtils.setField(jwtUtil, "expiration", 3_600_000L);
         userDetails = User.withUsername("admin").password("password").authorities("ROLE_USER").build();
     }
