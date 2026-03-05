@@ -32,45 +32,39 @@ jobs:
           java-version: '17'
           cache: maven
 
-      - name: Compile and quality checks
-        run: mvn --batch-mode --no-transfer-progress clean verify -DskipTests
-
-  unit_tests:
-    name: Unit Tests
-    runs-on: self-hosted
-    needs: code_quality
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-          cache: maven
-
-      - name: Run tests
-        run: mvn --batch-mode --no-transfer-progress test
+      - name: Maven verify (skip tests)
+        run: mvn --batch-mode --no-transfer-progress verify -DskipTests
 
   qodana:
     name: Qodana Scan
+    runs-on: self-hosted
     needs: code_quality
-    uses: ./.github/workflows/qodana_code_quality.yml
     permissions:
       contents: read
       checks: write
       pull-requests: write
-    secrets:
-      QODANA_TOKEN: ${{ secrets.QODANA_TOKEN }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-  dependency_submission:
-    name: Dependency Submission
+      - name: Qodana Scan
+        uses: JetBrains/qodana-action@v2025.3
+        env:
+          QODANA_TOKEN: ${{ secrets.QODANA_TOKEN }}
+        with:
+          pr-mode: false
+          use-caches: true
+          post-pr-comment: true
+          use-annotations: true
+          upload-result: false
+          push-fixes: 'none'
+
+  tests:
+    name: Tests
     runs-on: self-hosted
-    if: ${{ github.event_name == 'push' }}
-    needs: code_quality
-    permissions:
-      contents: write
+    needs:
+      - code_quality
+      - qodana
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -82,15 +76,44 @@ jobs:
           java-version: '17'
           cache: maven
 
-      - name: Submit dependency graph
-        uses: advanced-security/maven-dependency-submission-action@v5
+      - name: Maven clean verify
+        run: mvn --batch-mode --no-transfer-progress clean verify
+
+  codeql:
+    name: CodeQL Analysis
+    runs-on: self-hosted
+    needs: tests
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: java-kotlin
+          build-mode: manual
+
+      - name: Build project for CodeQL
+        run: mvn --batch-mode --no-transfer-progress clean compile -DskipTests
+
+      - name: Analyze with CodeQL
+        uses: github/codeql-action/analyze@v3
 
   docker:
-    name: Build and Push Docker Image
+    name: Docker Build and Push
     runs-on: self-hosted
-    needs:
-      - unit_tests
-      - qodana
+    needs: codeql
     if: ${{ github.event_name == 'push' }}
     steps:
       - name: Checkout repository
@@ -123,7 +146,7 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      - name: Build and push Docker image
+      - name: Build and push image tags
         env:
           IMAGE_NAME: victodomvar/userauth
           APP_VERSION: ${{ steps.app_version.outputs.version }}
@@ -139,11 +162,39 @@ jobs:
           docker push ${IMAGE_NAME}:latest
 
   deploy:
-    name: Deploy to Kubernetes
-    needs:
-      - docker
+    name: Deploy to Minikube
+    runs-on: self-hosted
+    needs: docker
     if: ${{ github.event_name == 'push' }}
-    uses: ./.github/workflows/deploy-k8s.yml
-    with:
-      namespace: energyco
-      image_version: ${{ github.sha }}
+    env:
+      NAMESPACE: energyco
+      IMAGE_NAME: victodomvar/userauth
+      IMAGE_TAG: ${{ github.sha }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: v1.32.0
+
+      - name: Deploy database then app
+        run: |
+          set -euo pipefail
+          kubectl config use-context minikube
+          kubectl cluster-info
+
+          kubectl get namespace "${NAMESPACE}" >/dev/null 2>&1 || kubectl create namespace "${NAMESPACE}"
+
+          kubectl apply -f k8s/db/volume/pv.yaml
+          kubectl apply -n "${NAMESPACE}" -f k8s/db/volume/pvc.yaml
+          kubectl apply -n "${NAMESPACE}" -f k8s/db/userauthdb-service.yaml
+          kubectl apply -n "${NAMESPACE}" -f k8s/db/userauthdb-deployment.yaml
+          kubectl rollout status deployment/userauthdb-deployment -n "${NAMESPACE}" --timeout=300s
+
+          kubectl apply -n "${NAMESPACE}" -f k8s/deployment/userauth-service.yaml
+          kubectl apply -n "${NAMESPACE}" -f k8s/deployment/userauth-deployment.yaml
+          kubectl set image deployment/userauth-deployment userauth=${IMAGE_NAME}:${IMAGE_TAG} -n "${NAMESPACE}"
+          kubectl rollout status deployment/userauth-deployment -n "${NAMESPACE}" --timeout=300s
+          kubectl wait --for=condition=ready pod -l app=userauth -n "${NAMESPACE}" --timeout=300s
