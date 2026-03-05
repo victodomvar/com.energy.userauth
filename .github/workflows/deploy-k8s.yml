@@ -25,20 +25,13 @@ on:
 permissions:
   contents: read
 
-concurrency:
-  group: deploy-k8s-${{ github.ref_name }}-${{ inputs.namespace }}
-  cancel-in-progress: false
-
-env:
-  IMAGE_NAME: victodomvar/userauth
-  DEPLOYMENT_NAME: userauth
-  CONTAINER_NAME: userauth
-
 jobs:
   deploy:
     runs-on: self-hosted
     env:
       NAMESPACE: ${{ inputs.namespace }}
+      IMAGE_NAME: victodomvar/userauth
+      IMAGE_TAG: ${{ inputs.image_version }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -48,54 +41,24 @@ jobs:
         with:
           version: v1.32.0
 
-      - name: Debug runner and kubeconfig
+      - name: Deploy to Minikube
         run: |
           set -euo pipefail
-          echo "whoami: $(whoami)"
-          echo "HOME: ${HOME}"
-          echo "KUBECONFIG: ${KUBECONFIG:-<not set>}"
-          if [ -f "${HOME}/.kube/config" ]; then
-            echo "~/.kube/config exists"
-          else
-            echo "~/.kube/config missing"
-          fi
-          kubectl config get-contexts -o name || true
 
-      - name: Select Kubernetes context
-        run: |
-          set -euo pipefail
-          CONTEXT="${KUBE_CONTEXT:-}"
-          if [ -z "${CONTEXT}" ]; then
-            CONTEXT="$(kubectl config current-context 2>/dev/null || true)"
-          fi
-          if [ -z "${CONTEXT}" ]; then
-            CONTEXT="$(kubectl config get-contexts -o name | head -n1 || true)"
-          fi
-          if [ -z "${CONTEXT}" ]; then
-            echo "No Kubernetes context available for this runner user." >&2
-            exit 1
-          fi
-          kubectl config use-context "${CONTEXT}"
-          echo "KUBE_CONTEXT_SELECTED=${CONTEXT}" >> "${GITHUB_ENV}"
-          echo "Using context: ${CONTEXT}"
+          kubectl config use-context minikube
+          kubectl cluster-info
 
-      - name: Verify cluster connectivity
-        run: |
-          set -euo pipefail
-          kubectl --context "${KUBE_CONTEXT_SELECTED}" cluster-info
+          kubectl get namespace "${NAMESPACE}" >/dev/null 2>&1 || kubectl create namespace "${NAMESPACE}"
 
-      - name: Ensure namespace exists
-        run: |
-          set -euo pipefail
-          kubectl --context "${KUBE_CONTEXT_SELECTED}" get namespace "${NAMESPACE}" >/dev/null 2>&1 || kubectl --context "${KUBE_CONTEXT_SELECTED}" create namespace "${NAMESPACE}"
+          # Database resources first
+          kubectl apply -f k8s/db/volume/pv.yaml
+          kubectl apply -n "${NAMESPACE}" -f k8s/db/volume/pvc.yaml
+          kubectl apply -n "${NAMESPACE}" -f k8s/db/userauthdb-service.yaml
+          kubectl apply -n "${NAMESPACE}" -f k8s/db/userauthdb-deployment.yaml
+          kubectl rollout status deployment/userauthdb-deployment -n "${NAMESPACE}" --timeout=300s
 
-      - name: Apply Kubernetes manifests
-        run: |
-          set -euo pipefail
-          kubectl --context "${KUBE_CONTEXT_SELECTED}" apply -n "${NAMESPACE}" -f k8s/
-
-      - name: Update deployment image
-        run: |
-          set -euo pipefail
-          kubectl --context "${KUBE_CONTEXT_SELECTED}" set image deployment/${DEPLOYMENT_NAME} ${CONTAINER_NAME}=${IMAGE_NAME}:${{ inputs.image_version }} -n "${NAMESPACE}"
-          kubectl --context "${KUBE_CONTEXT_SELECTED}" rollout status deployment/${DEPLOYMENT_NAME} -n "${NAMESPACE}"
+          # Application resources second
+          kubectl apply -n "${NAMESPACE}" -f k8s/deployment/userauth-service.yaml
+          kubectl apply -n "${NAMESPACE}" -f k8s/deployment/userauth-deployment.yaml
+          kubectl set image deployment/userauth-deployment userauth=${IMAGE_NAME}:${IMAGE_TAG} -n "${NAMESPACE}"
+          kubectl rollout status deployment/userauth-deployment -n "${NAMESPACE}" --timeout=300s
