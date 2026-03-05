@@ -32,23 +32,10 @@ jobs:
       - name: Verify code quality gates
         run: mvn verify -DskipTests --no-transfer-progress
 
-  qodana:
-    name: Qodana Scan
-    needs: code_quality
-    uses: ./.github/workflows/qodana_code_quality.yml
-    permissions:
-      contents: read
-      checks: write
-      pull-requests: write
-    secrets:
-      QODANA_TOKEN: ${{ secrets.QODANA_TOKEN }}
-
-  test:
-    name: Tests
+  dependency_vulnerability:
+    name: Dependency Vulnerability Scan
     runs-on: self-hosted
-    needs:
-      - code_quality
-      - qodana
+    needs: code_quality
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -60,8 +47,45 @@ jobs:
           java-version: '17'
           cache: maven
 
+      - name: Run OWASP Dependency-Check
+        run: |
+          mvn --no-transfer-progress \
+            org.owasp:dependency-check-maven:check \
+            -Dformat=HTML \
+            -DfailBuildOnCVSS=7 \
+            -DskipProvidedScope=true \
+            -DskipSystemScope=true
+
+      - name: Upload OWASP report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-check-report
+          path: target/dependency-check-report.html
+          if-no-files-found: warn
+
+  test:
+    name: Tests
+    runs-on: self-hosted
+    needs:
+      - code_quality
+      - dependency_vulnerability
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+
+      - name: Build application
+        run: mvn clean package -DskipTests --no-transfer-progress
+
       - name: Run tests
-        run: mvn clean verify --no-transfer-progress
+        run: mvn test --no-transfer-progress
 
   docker:
     name: Build and Push Docker Image
@@ -85,6 +109,13 @@ jobs:
       - name: Build application jar
         run: mvn clean package -DskipTests --no-transfer-progress
 
+      - name: Extract Maven project version
+        run: |
+          set -euo pipefail
+          APP_VERSION="$(mvn -q -DforceStdout help:evaluate -Dexpression=project.version)"
+          echo "APP_VERSION=${APP_VERSION}" >> "${GITHUB_ENV}"
+          echo "Resolved Maven version: ${APP_VERSION}"
+
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
         with:
@@ -94,7 +125,12 @@ jobs:
       - name: Build and push Docker image
         run: |
           set -euo pipefail
-          docker build -f dockerfile -t victodomvar/userauth:${{ github.sha }} -t victodomvar/userauth:latest .
+          docker build -f dockerfile \
+            -t victodomvar/userauth:${APP_VERSION} \
+            -t victodomvar/userauth:${{ github.sha }} \
+            -t victodomvar/userauth:latest \
+            .
+          docker push victodomvar/userauth:${APP_VERSION}
           docker push victodomvar/userauth:${{ github.sha }}
           docker push victodomvar/userauth:latest
 
