@@ -13,6 +13,18 @@ on:
         required: true
         default: energyco
         type: string
+  workflow_call:
+    inputs:
+      image_version:
+        required: true
+        type: string
+      namespace:
+        required: false
+        type: string
+        default: energyco
+    secrets:
+      KUBE_CONFIG:
+        required: true
 
 permissions:
   contents: read
