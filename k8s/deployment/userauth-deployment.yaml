@@ -19,11 +19,14 @@ spec:
           imagePullPolicy: Always
           ports:
             - containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: userauth-config
           env:
-            - name: SPRING_PROFILES_ACTIVE
-              value: "prod"
             - name: SPRING_DATASOURCE_URL
-              value: "jdbc:postgresql://userauthdb-service:5432/userauthdb"
+              value: "jdbc:postgresql://$(DB_HOST):$(DB_PORT)/userauthdb"
+            - name: LOGGING_LEVEL_ROOT
+              value: "$(LOG_LEVEL)"
             - name: SPRING_DATASOURCE_USERNAME
               value: "userauthuser"
             - name: SPRING_DATASOURCE_PASSWORD
