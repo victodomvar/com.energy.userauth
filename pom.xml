@@ -33,7 +33,11 @@
 		<maven.compiler.plugin.version>3.14.0</maven.compiler.plugin.version>
 		<openapi.generator.plugin.version>7.5.0</openapi.generator.plugin.version>
 		<springdoc.version>2.8.6</springdoc.version>
-		<spring-framework.version>6.2.10</spring-framework.version>
+		<spring-framework.version>6.2.11</spring-framework.version>
+		<spring-security.version>6.4.10</spring-security.version>
+		<tomcat.version>10.1.52</tomcat.version>
+		<logback.version>1.5.25</logback.version>
+		<assertj.version>3.27.7</assertj.version>
 		<jackson.version>2.18.6</jackson.version>
 		<commons-lang3.version>3.18.0</commons-lang3.version>
 	</properties>
@@ -44,6 +48,45 @@
 				<groupId>org.springframework</groupId>
 				<artifactId>spring-webmvc</artifactId>
 				<version>${spring-framework.version}</version>
+			</dependency>
+			<!-- Override vulnerable spring-security-core version to fix CVE-2025-41248 -->
+			<dependency>
+				<groupId>org.springframework.security</groupId>
+				<artifactId>spring-security-core</artifactId>
+				<version>${spring-security.version}</version>
+			</dependency>
+			<!-- Override vulnerable tomcat-embed-core version to fix multiple CVEs -->
+			<dependency>
+				<groupId>org.apache.tomcat.embed</groupId>
+				<artifactId>tomcat-embed-core</artifactId>
+				<version>${tomcat.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>org.apache.tomcat.embed</groupId>
+				<artifactId>tomcat-embed-el</artifactId>
+				<version>${tomcat.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>org.apache.tomcat.embed</groupId>
+				<artifactId>tomcat-embed-websocket</artifactId>
+				<version>${tomcat.version}</version>
+			</dependency>
+			<!-- Override vulnerable logback-core version to fix CVE-2025-11226 and CVE-2026-1225 -->
+			<dependency>
+				<groupId>ch.qos.logback</groupId>
+				<artifactId>logback-core</artifactId>
+				<version>${logback.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>ch.qos.logback</groupId>
+				<artifactId>logback-classic</artifactId>
+				<version>${logback.version}</version>
+			</dependency>
+			<!-- Override vulnerable assertj-core version to fix CVE-2026-24400 -->
+			<dependency>
+				<groupId>org.assertj</groupId>
+				<artifactId>assertj-core</artifactId>
+				<version>${assertj.version}</version>
 			</dependency>
 			<!-- Override vulnerable jackson-core version to fix GHSA-72hv-8253-57qq -->
 			<dependency>
