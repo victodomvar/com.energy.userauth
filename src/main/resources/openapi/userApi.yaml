@@ -2,6 +2,8 @@ openapi: 3.0.3
 info:
   title: User Management API
   version: "2.0.0"
+security:
+  - bearerAuth: []
 paths:
   /users:
     post:
@@ -21,6 +23,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/UserDto'
+        '401':
+          description: Unauthorized
     get:
       tags:
         - User
@@ -41,6 +45,8 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/UserDto'
+        '401':
+          description: Unauthorized
     put:
       tags:
         - User
@@ -65,6 +71,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/UserDto'
+        '401':
+          description: Unauthorized
   /users/{id}/identity-links:
     post:
       tags:
@@ -90,6 +98,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/IdentityLinkDto'
+        '401':
+          description: Unauthorized
     get:
       tags:
         - IdentityLink
@@ -110,7 +120,14 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/IdentityLinkDto'
+        '401':
+          description: Unauthorized
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
   schemas:
     UserStatus:
       type: string

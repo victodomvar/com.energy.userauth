@@ -12,10 +12,12 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.time.Instant;
 
 @ControllerAdvice
+@SuppressWarnings("unused")
 public class ExcepcionHandler {
 
     @ExceptionHandler(InvalidUserNameException.class)
@@ -38,6 +40,12 @@ public class ExcepcionHandler {
     @ExceptionHandler(UserNotFoundException.class)
     public ResponseEntity<ApiError> handleUserNotFoundException(UserNotFoundException ex, HttpServletRequest request) {
         return response(HttpStatus.NOT_FOUND, ex.getMessage(), request);
+    }
+
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<ApiError> handleNoResourceFoundException(NoResourceFoundException ex,
+                                                                   HttpServletRequest request) {
+        return response(HttpStatus.NOT_FOUND, "Resource not found.", request);
     }
 
     @ExceptionHandler(DataIntegrityViolationException.class)

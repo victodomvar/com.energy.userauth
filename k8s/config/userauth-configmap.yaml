@@ -8,3 +8,4 @@ data:
   DB_HOST: "userauthdb-service"
   DB_PORT: "5432"
   LOG_LEVEL: "INFO"
+  KEYCLOAK_ISSUER_URI: "http://keycloak.security.svc.cluster.local:8080/realms/energy-dev"
