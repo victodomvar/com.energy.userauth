@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
-  title: User Auth API
-  version: "1.0.0"
+  title: User Management API
+  version: "2.0.0"
 paths:
   /users:
     post:
@@ -13,7 +13,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/UserDto'
+              $ref: '#/components/schemas/CreateUserRequest'
       responses:
         '200':
           description: OK
@@ -57,7 +57,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/UserDto'
+              $ref: '#/components/schemas/UpdateUserRequest'
       responses:
         '200':
           description: OK
@@ -65,84 +65,143 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/UserDto'
-  /users/login:
+  /users/{id}/identity-links:
     post:
       tags:
-        - User
-      operationId: login
+        - IdentityLink
+      operationId: createIdentityLink
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/LoginRequest'
+              $ref: '#/components/schemas/CreateIdentityLinkRequest'
       responses:
         '200':
           description: OK
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AuthResponse'
-  /users/refresh-token:
-    post:
+                $ref: '#/components/schemas/IdentityLinkDto'
+    get:
       tags:
-        - User
-      operationId: refreshToken
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/RefreshTokenRequest'
+        - IdentityLink
+      operationId: getIdentityLinksByUser
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
       responses:
         '200':
-          description: Token refreshed successfully
+          description: OK
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AuthResponse'
+                type: array
+                items:
+                  $ref: '#/components/schemas/IdentityLinkDto'
 components:
   schemas:
-    UserDto:
+    UserStatus:
+      type: string
+      enum:
+        - ACTIVE
+        - INACTIVE
+        - SUSPENDED
+    CreateUserRequest:
       type: object
       properties:
-        id:
-          type: long
         userName:
           type: string
         email:
           type: string
-        password:
-          type: string
+          format: email
+        status:
+          $ref: '#/components/schemas/UserStatus'
       required:
         - userName
         - email
-        - password
-    LoginRequest:
+    UpdateUserRequest:
       type: object
       properties:
         userName:
           type: string
-        password:
+        email:
           type: string
+          format: email
+        status:
+          $ref: '#/components/schemas/UserStatus'
       required:
         - userName
-        - password
-    AuthResponse:
+        - email
+    UserDto:
       type: object
       properties:
-        token:
-          type: string
-        expiresIn:
+        id:
           type: integer
-          description: Expiration time in seconds
+          format: int64
+        userName:
+          type: string
+        email:
+          type: string
+          format: email
+        status:
+          $ref: '#/components/schemas/UserStatus'
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
       required:
-        - token
-        - expiresIn
-    RefreshTokenRequest:
+        - id
+        - userName
+        - email
+        - status
+    CreateIdentityLinkRequest:
       type: object
       properties:
-        refreshToken:
+        issuer:
+          type: string
+        subject:
+          type: string
+        provider:
           type: string
       required:
-        - refreshToken
+        - issuer
+        - subject
+        - provider
+    IdentityLinkDto:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        userId:
+          type: integer
+          format: int64
+        issuer:
+          type: string
+        subject:
+          type: string
+        provider:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - userId
+        - issuer
+        - subject
+        - provider

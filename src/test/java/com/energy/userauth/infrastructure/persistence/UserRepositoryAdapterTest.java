@@ -1,8 +1,9 @@
 package com.energy.userauth.infrastructure.persistence;
 
-import com.energy.userauth.application.mapper.UserMapper;
 import com.energy.userauth.domain.model.User;
+import com.energy.userauth.domain.model.UserStatus;
 import com.energy.userauth.infrastructure.persistence.entity.UserEntity;
+import com.energy.userauth.infrastructure.persistence.mapper.UserPersistenceMapper;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -19,7 +20,7 @@ import static org.mockito.Mockito.*;
 class UserRepositoryAdapterTest {
 
     @Mock
-    private UserMapper userMapper;
+    private UserPersistenceMapper userMapper;
     @Mock
     private JpaUserRepository jpaUserRepository;
 
@@ -28,8 +29,8 @@ class UserRepositoryAdapterTest {
 
     @Test
     void save_persistsDomainUser() {
-        User domainUser = new User(1L, "john", "john@example.com", "secret");
-        UserEntity entity = new UserEntity(1L, "john", "john@example.com", "secret");
+        User domainUser = new User(1L, "john", "john@example.com", UserStatus.ACTIVE, null, null);
+        UserEntity entity = new UserEntity(1L, "john", "john@example.com", UserStatus.ACTIVE.name(), null, null);
 
         when(userMapper.domainToEntity(domainUser)).thenReturn(entity);
         when(jpaUserRepository.save(entity)).thenReturn(entity);
@@ -43,8 +44,8 @@ class UserRepositoryAdapterTest {
 
     @Test
     void findById_returnsMappedDomainUser() {
-        User domainUser = new User(1L, "john", "john@example.com", "secret");
-        UserEntity entity = new UserEntity(1L, "john", "john@example.com", "secret");
+        User domainUser = new User(1L, "john", "john@example.com", UserStatus.ACTIVE, null, null);
+        UserEntity entity = new UserEntity(1L, "john", "john@example.com", UserStatus.ACTIVE.name(), null, null);
 
         when(jpaUserRepository.findById(1L)).thenReturn(Optional.of(entity));
         when(userMapper.entityToDomain(entity)).thenReturn(domainUser);
@@ -56,8 +57,8 @@ class UserRepositoryAdapterTest {
 
     @Test
     void findByEmail_returnsMappedDomainUser() {
-        User domainUser = new User(1L, "john", "john@example.com", "secret");
-        UserEntity entity = new UserEntity(1L, "john", "john@example.com", "secret");
+        User domainUser = new User(1L, "john", "john@example.com", UserStatus.ACTIVE, null, null);
+        UserEntity entity = new UserEntity(1L, "john", "john@example.com", UserStatus.ACTIVE.name(), null, null);
 
         when(jpaUserRepository.findByEmail("john@example.com")).thenReturn(Optional.of(entity));
         when(userMapper.entityToDomain(entity)).thenReturn(domainUser);
@@ -69,12 +70,14 @@ class UserRepositoryAdapterTest {
 
     @Test
     void findAll_returnsMappedList() {
-        User domainUser = new User(1L, "john", "john@example.com", "secret");
-        List<UserEntity> entities = List.of(new UserEntity(1L, "john", "john@example.com", "secret"));
+        User domainUser = new User(1L, "john", "john@example.com", UserStatus.ACTIVE, null, null);
+        List<UserEntity> entities = List.of(
+                new UserEntity(1L, "john", "john@example.com", UserStatus.ACTIVE.name(), null, null)
+        );
         List<User> domainUsers = List.of(domainUser);
 
         when(jpaUserRepository.findAll()).thenReturn(entities);
-        when(userMapper.entityToApiDtoList(entities)).thenReturn(domainUsers);
+        when(userMapper.entityListToDomainList(entities)).thenReturn(domainUsers);
 
         List<User> result = userRepositoryAdapter.findAll();
 

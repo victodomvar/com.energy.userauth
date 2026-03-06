@@ -1,20 +1,26 @@
 package com.energy.userauth.domain.model;
 
+import java.time.Instant;
+
 public class User {
     private Long id;
     private String userName;
     private String email;
-    private String password;
+    private UserStatus status;
+    private Instant createdAt;
+    private Instant updatedAt;
 
     public User() {
 
     }
 
-    public User(Long id, String userName, String email, String password) {
+    public User(Long id, String userName, String email, UserStatus status, Instant createdAt, Instant updatedAt) {
         this.id = id;
         this.userName = userName;
         this.email = email;
-        this.password = password;
+        this.status = status;
+        this.createdAt = createdAt;
+        this.updatedAt = updatedAt;
     }
 
     public Long getId() {
@@ -41,11 +47,27 @@ public class User {
         this.email = email;
     }
 
-    public String getPassword() {
-        return password;
+    public UserStatus getStatus() {
+        return status;
     }
 
-    public void setPassword(String password) {
-        this.password = password;
+    public void setStatus(UserStatus status) {
+        this.status = status;
+    }
+
+    public Instant getCreatedAt() {
+        return createdAt;
+    }
+
+    public void setCreatedAt(Instant createdAt) {
+        this.createdAt = createdAt;
+    }
+
+    public Instant getUpdatedAt() {
+        return updatedAt;
+    }
+
+    public void setUpdatedAt(Instant updatedAt) {
+        this.updatedAt = updatedAt;
     }
 }

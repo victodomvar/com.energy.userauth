@@ -1,8 +1,4 @@
 spring:
-  security:
-    user:
-      name: victor
-      password: victor
   datasource:
     username: userauthuser
     password: userauthpassword
