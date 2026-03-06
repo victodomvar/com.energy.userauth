@@ -1,4 +1,11 @@
 spring:
+  application:
+    name: userauth
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${KEYCLOAK_ISSUER_URI:http://localhost:8080/realms/energy-dev}
   datasource:
     username: userauthuser
     password: userauthpassword
@@ -9,6 +16,10 @@ spring:
         dialect: org.hibernate.dialect.PostgreSQLDialect
     hibernate:
       ddl-auto: update
+
+logging:
+  level:
+    org.springframework.security: INFO
 
 ---
 spring:

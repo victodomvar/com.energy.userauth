@@ -91,7 +91,20 @@ Errors are structured JSON:
 }
 ```
 
+Authentication/authorization failures are also JSON:
+```json
+{
+  "timestamp": "2026-03-06T12:10:00Z",
+  "status": 401,
+  "error": "Unauthorized",
+  "message": "Authentication required or bearer token is invalid.",
+  "path": "/users"
+}
+```
+
 ## Security
 - This service is a resource server and expects bearer access tokens.
 - Tokens must be issued by Keycloak (or another configured OIDC provider).
 - The service does not provide login or refresh-token endpoints.
+- Configure issuer validation with `KEYCLOAK_ISSUER_URI`.
+- Local default issuer: `http://localhost:8080/realms/energy-dev`.

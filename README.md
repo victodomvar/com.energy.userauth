@@ -31,11 +31,14 @@ Dependency direction:
 
 ## Security Model
 - Service is configured as an OAuth2 Resource Server.
-- It expects bearer tokens already issued by Keycloak.
+- It expects bearer access tokens already issued by Keycloak.
 - In production, API Gateway should validate tokens before requests reach this service.
 
 Configuration:
-- `spring.security.oauth2.resourceserver.jwt.jwk-set-uri`
+- `spring.security.oauth2.resourceserver.jwt.issuer-uri`
+- Environment variable: `KEYCLOAK_ISSUER_URI`
+- Local default: `http://localhost:8080/realms/energy-dev`
+- Kubernetes example: `http://keycloak.security.svc.cluster.local:8080/realms/energy-dev`
 
 ## Main Tech Stack
 - Java 17
