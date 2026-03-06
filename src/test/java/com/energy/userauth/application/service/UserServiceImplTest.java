@@ -1,12 +1,12 @@
 package com.energy.userauth.application.service;
 
-import com.energy.userauth.application.mapper.UserMapper;
-import com.energy.userauth.application.port.UserRepository;
+import com.energy.userauth.application.port.out.UserRepositoryPort;
+import com.energy.userauth.application.usecase.UserUseCaseImpl;
 import com.energy.userauth.domain.exception.UserAlreadyExistsException;
 import com.energy.userauth.domain.exception.UserNotFoundException;
 import com.energy.userauth.domain.model.User;
+import com.energy.userauth.domain.model.UserStatus;
 import com.energy.userauth.domain.service.UserDomainService;
-import com.energy.userauth.openapi.model.UserDto;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -29,97 +29,84 @@ class UserServiceImplTest {
     @Mock
     private UserDomainService userDomainService;
     @Mock
-    private UserRepository userRepository;
-    @Mock
-    private UserMapper userMapper;
+    private UserRepositoryPort userRepository;
 
     @InjectMocks
-    private UserServiceImpl userService;
+    private UserUseCaseImpl userService;
 
-    private UserDto apiUserDto;
     private User domainUser;
 
     @BeforeEach
     void setUp() {
-        apiUserDto = new UserDto().id(1L).userName("john").email("john@example.com").password("secret");
-        domainUser = new User(1L, "john", "john@example.com", "secret");
+        domainUser = new User(1L, "john", "john@example.com", UserStatus.ACTIVE, null, null);
     }
 
     @Test
-    void createUser_withValidData_savesAndReturnsDto() {
-        UserDto expectedResponse = new UserDto().id(2L).userName("john").email("john@example.com");
-        User savedUser = new User(2L, "john", "john@example.com", "secret");
+    void createUser_withValidData_savesAndReturnsUser() {
+        User savedUser = new User(2L, "john", "john@example.com", UserStatus.ACTIVE, null, null);
 
-        when(userMapper.apiDtoToDomain(apiUserDto)).thenReturn(domainUser);
         when(userRepository.findByEmail(domainUser.getEmail())).thenReturn(Optional.empty());
         when(userRepository.save(domainUser)).thenReturn(savedUser);
-        when(userMapper.domainToUserApiDto(savedUser)).thenReturn(expectedResponse);
 
-        UserDto result = userService.createUser(apiUserDto);
+        User result = userService.createUser(domainUser);
 
         verify(userDomainService).validateUserCreation(domainUser);
         verify(userRepository).findByEmail("john@example.com");
         verify(userRepository).save(domainUser);
-        assertEquals(expectedResponse, result);
+        assertEquals(savedUser, result);
     }
 
     @Test
     void createUser_whenEmailAlreadyExists_throwsException() {
-        when(userMapper.apiDtoToDomain(apiUserDto)).thenReturn(domainUser);
         when(userRepository.findByEmail(domainUser.getEmail())).thenReturn(Optional.of(domainUser));
 
-        assertThrows(UserAlreadyExistsException.class, () -> userService.createUser(apiUserDto));
+        assertThrows(UserAlreadyExistsException.class, () -> userService.createUser(domainUser));
 
         verify(userRepository, never()).save(any());
     }
 
     @Test
-    void updateUser_whenUserExists_updatesAndReturnsDto() {
-        User savedUser = new User(1L, "john", "john@example.com", "updated");
-        UserDto expectedResponse = new UserDto().id(1L).userName("john").email("john@example.com");
+    void updateUser_whenUserExists_updatesAndReturnsUser() {
+        User savedUser = new User(1L, "john", "john@example.com", UserStatus.ACTIVE, null, null);
+        User updateRequest = new User(999L, "john", "john@example.com", UserStatus.SUSPENDED, null, null);
 
-        when(userRepository.findById(apiUserDto.getId())).thenReturn(Optional.of(savedUser));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(savedUser));
         when(userRepository.save(savedUser)).thenReturn(savedUser);
-        when(userMapper.domainToUserApiDto(savedUser)).thenReturn(expectedResponse);
 
-        UserDto result = userService.updateUser(apiUserDto.getId(), apiUserDto);
+        User result = userService.updateUser(1L, updateRequest);
 
-        verify(userRepository).findById(apiUserDto.getId());
+        verify(userRepository).findById(1L);
         verify(userRepository).save(savedUser);
-        assertEquals(expectedResponse, result);
+        assertEquals(UserStatus.SUSPENDED, savedUser.getStatus());
+        assertEquals(savedUser, result);
     }
 
     @Test
     void updateUser_whenUserDoesNotExist_throwsException() {
-        when(userRepository.findById(apiUserDto.getId())).thenReturn(Optional.empty());
+        when(userRepository.findById(1L)).thenReturn(Optional.empty());
 
-        assertThrows(UserNotFoundException.class, () -> userService.updateUser(apiUserDto.getId(), apiUserDto));
+        assertThrows(UserNotFoundException.class, () -> userService.updateUser(1L, domainUser));
     }
 
     @Test
     void getUser_withId_returnsSingleUser() {
-        UserDto expectedResponse = new UserDto().id(1L).userName("john").email("john@example.com");
-
         when(userRepository.findById(1L)).thenReturn(Optional.of(domainUser));
-        when(userMapper.domainToUserApiDto(domainUser)).thenReturn(expectedResponse);
 
-        List<UserDto> result = userService.getUser(1L);
+        List<User> result = userService.getUser(1L);
 
-        assertThat(result).hasSize(1).containsExactly(expectedResponse);
+        assertThat(result).hasSize(1).containsExactly(domainUser);
         verify(userRepository, never()).findAll();
     }
 
     @Test
     void getUser_withoutId_returnsAllUsers() {
         List<User> users = Collections.singletonList(domainUser);
-        List<UserDto> expected = Collections.singletonList(new UserDto().id(1L).userName("john"));
 
         when(userRepository.findAll()).thenReturn(users);
-        when(userMapper.domainToApiDtoList(users)).thenReturn(expected);
 
-        List<UserDto> result = userService.getUser(null);
+        List<User> result = userService.getUser(null);
 
-        assertEquals(expected, result);
+        assertEquals(users, result);
         verify(userRepository).findAll();
     }
 }
