@@ -1,6 +1,5 @@
 package com.energy.userauth.presentation;
 
-import com.energy.userauth.application.port.in.IdentityLinkUseCase;
 import com.energy.userauth.application.port.in.UserUseCase;
 import com.energy.userauth.domain.model.User;
 import com.energy.userauth.domain.model.UserStatus;
@@ -25,7 +24,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest
 @AutoConfigureMockMvc
 @MockitoBean(types = JwtDecoder.class)
-@MockitoBean(types = IdentityLinkUseCase.class)
 class SecurityResourceServerIntegrationTest {
 
     @Autowired
@@ -84,6 +82,12 @@ class SecurityResourceServerIntegrationTest {
     @Test
     void refreshTokenEndpointWithJwtShouldReturn404() throws Exception {
         mockMvc.perform(post("/users/refresh-token").with(jwt()))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void identityLinkEndpointWithJwtShouldReturn404() throws Exception {
+        mockMvc.perform(get("/users/1/identity-links").with(jwt()))
                 .andExpect(status().isNotFound());
     }
 }

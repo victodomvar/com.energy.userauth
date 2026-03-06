@@ -8,7 +8,6 @@ This service is no longer an identity provider.
 ## What This Service Does
 - Manages internal user profiles and lifecycle (`create`, `update`, `query`)
 - Stores internal user status (`ACTIVE`, `INACTIVE`, `SUSPENDED`)
-- Links external identities (Keycloak/OpenID Connect identities) to internal users
 - Acts as source of truth for internal user records used by downstream business services
 
 ## What This Service Does Not Do
@@ -21,7 +20,7 @@ Authentication and token issuance are delegated to Keycloak.
 
 ## Architecture
 Hexagonal (ports and adapters):
-- `domain`: business models/rules (`User`, `IdentityLink`, validations)
+- `domain`: business models/rules (`User`, validations)
 - `application`: use cases and ports
 - `infrastructure`: JPA adapters, resource-server security configuration
 - `presentation`: controllers, DTO mapping, structured API errors
@@ -52,6 +51,9 @@ Configuration:
 ## Migration Note
 A legacy `users.password` column is temporarily retained at persistence level for schema compatibility.
 Business APIs no longer accept or return passwords. Remove that column in a coordinated DB migration.
+
+The former `identity_links` feature has been removed from the application layer and API contract.
+If a backing `identity_links` table already exists in a deployed database, remove it with a coordinated DB migration.
 
 ## Run
 ```bash

@@ -1,6 +1,5 @@
 package com.energy.userauth.presentation.exception;
 
-import com.energy.userauth.domain.exception.IdentityLinkAlreadyExistsException;
 import com.energy.userauth.domain.exception.InvalidEmailException;
 import com.energy.userauth.domain.exception.InvalidUserNameException;
 import com.energy.userauth.domain.exception.UserAlreadyExistsException;
@@ -32,7 +31,7 @@ public class ExcepcionHandler {
         return response(HttpStatus.UNPROCESSABLE_ENTITY, ex.getMessage(), request);
     }
 
-    @ExceptionHandler({UserAlreadyExistsException.class, IdentityLinkAlreadyExistsException.class})
+    @ExceptionHandler(UserAlreadyExistsException.class)
     public ResponseEntity<ApiError> handleConflict(UserDomainException ex, HttpServletRequest request) {
         return response(HttpStatus.CONFLICT, ex.getMessage(), request);
     }

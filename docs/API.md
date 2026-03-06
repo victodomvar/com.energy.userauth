@@ -52,33 +52,6 @@ Request:
 
 Response `200`: updated user.
 
-### `POST /users/{id}/identity-links`
-Link an external identity (for example Keycloak subject) to an internal user.
-
-Request:
-```json
-{
-  "issuer": "https://keycloak.example.com/realms/energy",
-  "subject": "63bf7e6c-a61f-451f-a63e-63a1fef3bdcb",
-  "provider": "keycloak"
-}
-```
-
-Response `200`:
-```json
-{
-  "id": 10,
-  "userId": 1,
-  "issuer": "https://keycloak.example.com/realms/energy",
-  "subject": "63bf7e6c-a61f-451f-a63e-63a1fef3bdcb",
-  "provider": "keycloak",
-  "createdAt": "2026-03-06T12:03:00Z"
-}
-```
-
-### `GET /users/{id}/identity-links`
-Get identity links for one internal user.
-
 ## Error Format
 Errors are structured JSON:
 ```json
@@ -86,8 +59,8 @@ Errors are structured JSON:
   "timestamp": "2026-03-06T12:10:00Z",
   "status": 409,
   "error": "Conflict",
-  "message": "Identity link already exists for issuer ...",
-  "path": "/users/1/identity-links"
+  "message": "User already exists for the provided unique fields.",
+  "path": "/users"
 }
 ```
 
